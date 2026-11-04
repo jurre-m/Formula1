@@ -1,0 +1,22 @@
+
+
+
+
+
+
+
+Example:
+
+streamlit
+pandas
+numpy
+pyarrow
+plotly
+scipy
+statsmodels
+shapely
+# only needed for the notebooks
+requests
+matplotlib
+holidays
+scikit-learn
