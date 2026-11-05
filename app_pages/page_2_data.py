@@ -16,7 +16,7 @@ the tables are kept in memory (cached).
 
 ### Cleaning steps
 1. Missing values in the source are written as `\\N`; these are read as real missing values (NaN).
-2. `results`, `races`, `drivers` and `constructors` are merged into one row per driver per race.
+2. `results`, `races`, `drivers` and `constructors` (4 of the dataframes in the collection of the Kaggle dataset) are merged into one row per driver per race.
 3. Driver names are built from first and last name.
 4. Grid position `0` (pit-lane start) is treated as missing.
 5. Retirements have no finishing position, so two variants are kept: finishers only, or
