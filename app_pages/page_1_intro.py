@@ -9,7 +9,7 @@ A great driver in a poor car can and often does finish behind an average
 driver in a dominant one, so raw results say little about driver skill.
 """)
 
-st.header("""
+st.subheader("""
 **Research idea.** Two drivers in the *same team, in the same season* drive (almost) the same car.
 By comparing each driver with their teammate(s) in the races they both entered, most of the
 car's influence cancels out, and what remains says something about the driver.
