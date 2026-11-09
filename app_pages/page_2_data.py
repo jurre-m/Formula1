@@ -16,11 +16,13 @@ the tables are kept in memory (cached).
 
 ### Cleaning steps
 1. Missing values in the source are written as `\\N`; these are read as real missing values (NaN).
-2. `results`, `races`, `drivers` and `constructors` (4 of the dataframes in the collection of the Kaggle dataset) are merged into one row per driver per race.
+2. `results`, `races`, `drivers` and `constructors` are merged into one row per driver per race.
 3. Driver names are built from first and last name.
 4. Grid position `0` (pit-lane start) is treated as missing.
-5. Retirements have no finishing position, so two variants are kept: finishers only, or
-   retirements ranked last.
+5. Retirements have no finishing position, so two variants are kept: finishers only (the
+   default), or all races, where every retirement that is not a known mechanical failure
+   counts as one place behind the last finisher. Known mechanical failures and drivers who
+   did not start are left out of that variant.
 6. For every driver in every race, the **teammate gap** is calculated:
    average finishing position of the teammate(s) minus the driver's own position.
    Positive = ahead of the teammate.
@@ -38,3 +40,18 @@ with st.expander("Rows per source table"):
     st.dataframe({k: len(v) for k, v in raw.items()})
 with st.expander("Preview of the prepared table"):
     st.dataframe(rl.head(50))
+
+with st.expander("How retirements are treated"):
+    TREATMENT = {
+        "Mechanical failure": "Left out (not the driver's fault)",
+        "Did not start": "Left out",
+        "Other retirement": "One place behind the last finisher (only when retirements are included)",
+    }
+    kinds = (rl[rl.dnf_kind != "Finished"].groupby(["dnf_kind", "status"]).size()
+             .rename("Entries").reset_index().sort_values(["dnf_kind", "Entries"],
+                                                           ascending=[True, False]))
+    kinds["Treatment"] = kinds.dnf_kind.map(TREATMENT)
+    st.dataframe(kinds.rename(columns={"dnf_kind": "Category", "status": "Reason"}),
+                 hide_index=True)
+    st.caption("Reasons are sorted into categories by keywords (MECHANICAL_PATTERN in utils.py). "
+               "Unknown reasons such as plain 'Retired' count as non-mechanical.")
