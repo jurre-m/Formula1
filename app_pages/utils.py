@@ -164,8 +164,8 @@ def filter_period(df, dec, yr):
 
 # ---------------------------------------------------------------- reliability
 # Rules of thumb for the High / Medium / Low label; adjust to taste.
-HIGH_MIN_RACES, HIGH_MAX_MARGIN = 12, 2.0
-MED_MIN_RACES, MED_MAX_MARGIN = 6, 2.5
+HIGH_MIN_RACES, HIGH_MAX_MARGIN = 12, 2.2
+MED_MIN_RACES, MED_MAX_MARGIN = 6, 1.8
 
 
 def add_reliability(t):
@@ -235,3 +235,105 @@ def career_overview(driver_id):
         "races": int(d["raceId"].nunique()), "wins": int(d["win"].sum()),
     }
     return info, stints
+
+
+# ---------------------------------------------------------------- career statistics
+@st.cache_data
+def career_table(min_season_races=10):
+    """Career totals per driver, using only seasons with at least `min_season_races`
+    races shared with a teammate (finishers only)."""
+    rl = load_race_level()
+    s = season_table(True)
+    keys = s.loc[s["shared_races"] >= min_season_races, ["year", "constructorId", "driverId"]]
+    r = rl.merge(keys, on=["year", "constructorId", "driverId"]).dropna(subset=["gap_fin"])
+    r = r.assign(beat=(r["gap_fin"] > 0).astype(float))
+    out = r.groupby(["driverId", "driver", "nationality"], as_index=False).agg(
+        seasons=("year", "nunique"), first=("year", "min"), last=("year", "max"),
+        duels=("gap_fin", "count"), gap_sum=("gap_fin", "sum"),
+        gap_avg=("gap_fin", "mean"), gap_sd=("gap_fin", "std"), h2h=("beat", "mean"))
+    out["h2h"] *= 100
+    return out
+
+
+# ---------------------------------------------------------------- teammate-adjusted rating
+# Shrinkage towards the "average driver", in pseudo-races. Higher = more cautious with
+# drivers who have few duels.
+RATING_LAMBDA = 10.0
+
+
+@st.cache_data
+def driver_ratings(finished_only=True):
+    """One skill rating per driver, estimated from ALL teammate duels at once.
+
+    Model: in a race, (teammate's position - own position) ~ own rating - teammate's rating.
+    Solved by weighted ridge least squares, so beating a strong teammate counts for more than
+    beating a weak one, and drivers are linked across teams and years through teammates.
+    The rating is in 'places per race versus the average driver'; the difference between two
+    ratings is the expected gap if they were teammates."""
+    rl = load_race_level()
+    pos = "position" if finished_only else "pos_incl"
+    left = rl[["raceId", "constructorId", "year", "driverId", pos]]
+    right = rl[["raceId", "constructorId", "driverId", pos]]
+    p = left.merge(right, on=["raceId", "constructorId"], suffixes=("_i", "_j"))
+    p = p[p["driverId_i"] < p["driverId_j"]].copy()
+    p["g"] = p[f"{pos}_j"] - p[f"{pos}_i"]          # positive = driver i ahead of j
+    p = p.dropna(subset=["g"])
+
+    pr = (p.groupby(["year", "constructorId", "driverId_i", "driverId_j"])["g"]
+            .agg(n="count", g_mean="mean", g_var="var").reset_index())
+
+    # race-to-race noise, pooled over all teammate pairs
+    dof = (pr["n"] - 1).sum()
+    sigma2 = float((pr["g_var"].fillna(0) * (pr["n"] - 1)).sum() / dof) if dof > 0 else 1.0
+
+    ids = np.sort(np.unique(np.r_[pr["driverId_i"], pr["driverId_j"]]))
+    index = {d: k for k, d in enumerate(ids)}
+    i = pr["driverId_i"].map(index).to_numpy()
+    j = pr["driverId_j"].map(index).to_numpy()
+    w = pr["n"].to_numpy(float)
+    g = pr["g_mean"].to_numpy(float)
+
+    m = len(ids)
+    M = np.zeros((m, m))
+    b = np.zeros(m)
+    np.add.at(M, (i, i), w)
+    np.add.at(M, (j, j), w)
+    np.add.at(M, (i, j), -w)
+    np.add.at(M, (j, i), -w)
+    np.add.at(b, i, w * g)
+    np.add.at(b, j, -w * g)
+    M += RATING_LAMBDA * np.eye(m)
+    Minv = np.linalg.inv(M)
+    rating = Minv @ b
+    se = np.sqrt(sigma2 * np.diag(Minv))      # approximate (slightly conservative)
+
+    out = pd.DataFrame({"driverId": ids, "rating": rating, "se": se})
+    by_id = dict(zip(ids, rating))
+    long = pd.concat([
+        pd.DataFrame({"driverId": pr["driverId_i"], "mate": pr["driverId_j"], "n": pr["n"]}),
+        pd.DataFrame({"driverId": pr["driverId_j"], "mate": pr["driverId_i"], "n": pr["n"]}),
+    ])
+    long["wr"] = long["mate"].map(by_id) * long["n"]
+    agg = long.groupby("driverId").agg(pair_duels=("n", "sum"), wr=("wr", "sum"))
+    agg["mate_rating"] = agg["wr"] / agg["pair_duels"]
+    return out.merge(agg[["pair_duels", "mate_rating"]], left_on="driverId", right_index=True)
+
+
+@st.cache_data
+def teammate_results(driver_id, finished_only=True):
+    """One row per teammate the driver ever had: shared races, average gap, duels won."""
+    rl = load_race_level()
+    pos = "position" if finished_only else "pos_incl"
+    me = rl.loc[rl["driverId"] == driver_id, ["raceId", "constructorId", "year", "team", pos]]
+    mates = rl[["raceId", "constructorId", "driverId", "driver", pos]]
+    p = me.merge(mates, on=["raceId", "constructorId"], suffixes=("", "_mate"))
+    p = p[p["driverId"] != driver_id].copy()
+    p["gap"] = p[f"{pos}_mate"] - p[pos]
+    p = p.dropna(subset=["gap"])
+    p["beat"] = (p["gap"] > 0).astype(float)
+    out = p.groupby(["driverId", "driver"], as_index=False).agg(
+        teams=("team", lambda s: ", ".join(sorted(set(s)))),
+        seasons=("year", year_ranges), races=("gap", "count"),
+        gap_avg=("gap", "mean"), h2h=("beat", "mean"))
+    out["h2h"] *= 100
+    return out.sort_values("races", ascending=False)
