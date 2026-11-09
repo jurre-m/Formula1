@@ -134,8 +134,8 @@ def filter_period(df, dec, yr):
 
 # ---------------------------------------------------------------- reliability
 # Rules of thumb for the High / Medium / Low label; adjust to taste.
-HIGH_MIN_RACES, HIGH_MAX_MARGIN = 12, 2.2
-MED_MIN_RACES, MED_MAX_MARGIN = 6, 1.8
+HIGH_MIN_RACES, HIGH_MAX_MARGIN = 12, 1.8
+MED_MIN_RACES, MED_MAX_MARGIN = 6, 2.2
 
 
 def add_reliability(t):
@@ -148,6 +148,11 @@ def add_reliability(t):
     high = (t["shared_races"] >= HIGH_MIN_RACES) & (t["margin"] <= HIGH_MAX_MARGIN)
     med = (t["shared_races"] >= MED_MIN_RACES) & (t["margin"] <= MED_MAX_MARGIN)
     t["reliability"] = np.select([high, med], ["High", "Medium"], default="Low")
+    # Is the average gap clearly larger than its own margin of error, or could it be chance?
+    t["verdict"] = np.select(
+        [t["shared_races"] < MED_MIN_RACES, t["gap_avg"] > t["margin"], t["gap_avg"] < -t["margin"]],
+        ["Too few races", "Clear advantage", "Clear disadvantage"],
+        default="Within noise")
     return t
 
 
