@@ -1,6 +1,7 @@
 """Shared data loading and metrics for the F1 driver-skill app."""
 import os
 import tempfile
+import unicodedata
 
 import numpy as np
 import pandas as pd
@@ -101,7 +102,7 @@ def season_table(finished_only=True):
         avg_finish=("position", "mean"), avg_grid=("grid", "mean"),
         wins=("win", "sum"), podiums=("podium", "sum"), poles=("pole", "sum"),
         dnfs=("dnf", "sum"), shared_races=("gap", "count"),
-        gap_sum=("gap", "sum"), gap_avg=("gap", "mean"),
+        gap_sum=("gap", "sum"), gap_avg=("gap", "mean"), gap_sd=("gap", "std"),
         h2h=("beat", "mean"), grid_gap_avg=("gap_grid", "mean"),
     )
     out["h2h"] *= 100
@@ -129,3 +130,73 @@ def filter_period(df, dec, yr):
     if dec is not None:
         return df[df.year.between(dec, dec + 9)]
     return df
+
+
+# ---------------------------------------------------------------- reliability
+# Rules of thumb for the High / Medium / Low label; adjust to taste.
+HIGH_MIN_RACES, HIGH_MAX_MARGIN = 15, 1.5
+MED_MIN_RACES, MED_MAX_MARGIN = 8, 2.5
+
+
+def add_reliability(t):
+    """Adds `margin` (95% margin of error of the per-race gap, in places) and a
+    `reliability` label (High / Medium / Low) based on the number of shared races and
+    on how consistent the race-by-race gap is."""
+    t = t.copy()
+    n = t["shared_races"].where(t["shared_races"] > 0)
+    t["margin"] = 1.96 * t["gap_sd"] / np.sqrt(n)
+    high = (t["shared_races"] >= HIGH_MIN_RACES) & (t["margin"] <= HIGH_MAX_MARGIN)
+    med = (t["shared_races"] >= MED_MIN_RACES) & (t["margin"] <= MED_MAX_MARGIN)
+    t["reliability"] = np.select([high, med], ["High", "Medium"], default="Low")
+    return t
+
+
+# ---------------------------------------------------------------- driver search
+def _norm(text):
+    """Lower-case and strip accents so 'perez' finds 'Pérez'."""
+    text = unicodedata.normalize("NFKD", str(text))
+    return "".join(c for c in text if not unicodedata.combining(c)).casefold()
+
+
+def find_drivers(query):
+    """Case- and accent-insensitive search. Returns a list of (driverId, name)."""
+    words = _norm(query).split()
+    if not words:
+        return []
+    names = load_race_level()[["driverId", "driver"]].drop_duplicates()
+    mask = names["driver"].map(lambda n: all(w in _norm(n) for w in words))
+    found = names[mask].sort_values("driver")
+    return list(zip(found["driverId"], found["driver"]))
+
+
+def year_ranges(years):
+    """[1990, 1991, 1992, 1995] -> '1990–1992, 1995'"""
+    years = sorted({int(y) for y in years})
+    parts, start, prev = [], years[0], years[0]
+
+    def label(a, b):
+        return str(a) if a == b else f"{a}–{b}"
+
+    for y in years[1:]:
+        if y != prev + 1:
+            parts.append(label(start, prev))
+            start = y
+        prev = y
+    parts.append(label(start, prev))
+    return ", ".join(parts)
+
+
+def career_overview(driver_id):
+    """Returns (summary dict, DataFrame with one row per team)."""
+    d = load_race_level()
+    d = d[d["driverId"] == driver_id]
+    stints = (d.groupby("team")
+               .agg(first=("year", "min"), seasons=("year", year_ranges),
+                    races=("raceId", "nunique"))
+               .sort_values("first").reset_index())
+    info = {
+        "name": d["driver"].iloc[0], "nationality": d["nationality"].iloc[0],
+        "first": int(d["year"].min()), "last": int(d["year"].max()),
+        "races": int(d["raceId"].nunique()), "wins": int(d["win"].sum()),
+    }
+    return info, stints
