@@ -27,6 +27,19 @@ NATIONALITY_TO_ISO = {
 }
 
 
+# Retirement reasons (matched on the lower-cased `status` text of the dataset).
+# Known mechanical failures are left out of the "all races" comparison. Edit to taste.
+MECHANICAL_PATTERN = (
+    r"engine|gearbox|transmission|clutch|hydraulic|electr|radiator|suspension|brake|"
+    r"differential|overheat|mechanical|technical|driveshaft|axle|cv joint|fuel|oil|water|"
+    r"cooling|exhaust|turbo|supercharger|ignition|spark|magneto|distributor|misfire|"
+    r"throttle|steering|track rod|wheel|tyre|puncture|pneumatic|power|\bers\b|battery|"
+    r"alternator|vibration|undertray|wing|heat shield|seat|safety belt|refuelling"
+)
+# Entries that never really raced: also left out.
+NOT_STARTED_PATTERN = r"did not|107%|withdrew"
+
+
 @st.cache_data(show_spinner="Downloading F1 data from Kaggle…")
 def load_raw():
     """Download the Kaggle dataset into a temp folder, read the tables, delete the folder."""
@@ -44,7 +57,7 @@ def load_raw():
         path = kagglehub.dataset_download(SLUG)
         return {
             name: pd.read_csv(os.path.join(path, f"{name}.csv"), na_values=r"\N")
-            for name in ["results", "races", "drivers", "constructors"]
+            for name in ["results", "races", "drivers", "constructors", "status"]
         }
 
 
@@ -72,12 +85,29 @@ def load_race_level():
     drivers = t["drivers"].assign(driver=lambda x: x.forename + " " + x.surname)[
         ["driverId", "driver", "nationality"]]
     teams = t["constructors"][["constructorId", "name"]].rename(columns={"name": "team"})
+    status = t["status"][["statusId", "status"]]
 
     df = (r.merge(races, on="raceId").merge(drivers, on="driverId")
-           .merge(teams, on="constructorId").reset_index(drop=True))
+           .merge(teams, on="constructorId").merge(status, on="statusId", how="left")
+           .reset_index(drop=True))
 
     df["gap_fin"] = mate_gap(df, "position")       # only classified finishers
-    df["gap_all"] = mate_gap(df, "positionOrder")  # retirements ranked last
+    # "All races" variant: every retirement that is not a known mechanical failure gets the
+    # same place, one behind the last classified finisher (17 finishers -> all get 18th).
+    # Known mechanical failures and drivers who did not start are left out (NaN).
+    status_l = df["status"].fillna("").str.lower()
+    dnf = df["position"].isna()
+    df["dnf_kind"] = np.select(
+        [~dnf,
+         dnf & status_l.str.contains(NOT_STARTED_PATTERN),
+         dnf & status_l.str.contains(MECHANICAL_PATTERN)],
+        ["Finished", "Did not start", "Mechanical failure"],
+        default="Other retirement")
+    last_place = df.groupby("raceId")["position"].transform("count") + 1
+    df["pos_incl"] = np.select(
+        [df["dnf_kind"] == "Finished", df["dnf_kind"] == "Other retirement"],
+        [df["position"], last_place], default=np.nan)
+    df["gap_all"] = mate_gap(df, "pos_incl")
     df["gap_grid"] = mate_gap(df, "grid")          # qualifying / grid gap
     df["win"] = (df.position == 1).astype(int)
     df["podium"] = (df.position <= 3).astype(int)
@@ -134,8 +164,8 @@ def filter_period(df, dec, yr):
 
 # ---------------------------------------------------------------- reliability
 # Rules of thumb for the High / Medium / Low label; adjust to taste.
-HIGH_MIN_RACES, HIGH_MAX_MARGIN = 12, 1.8
-MED_MIN_RACES, MED_MAX_MARGIN = 6, 2.2
+HIGH_MIN_RACES, HIGH_MAX_MARGIN = 12, 2.2
+MED_MIN_RACES, MED_MAX_MARGIN = 6, 1.8
 
 
 def add_reliability(t):
