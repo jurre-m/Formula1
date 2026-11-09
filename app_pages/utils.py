@@ -134,8 +134,8 @@ def filter_period(df, dec, yr):
 
 # ---------------------------------------------------------------- reliability
 # Rules of thumb for the High / Medium / Low label; adjust to taste.
-HIGH_MIN_RACES, HIGH_MAX_MARGIN = 15, 1.5
-MED_MIN_RACES, MED_MAX_MARGIN = 8, 2.5
+HIGH_MIN_RACES, HIGH_MAX_MARGIN = 12, 1.2
+MED_MIN_RACES, MED_MAX_MARGIN = 6, 2.0
 
 
 def add_reliability(t):
