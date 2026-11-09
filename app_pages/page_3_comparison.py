@@ -55,7 +55,8 @@ ROW_CUM = "Cumulative places ahead of teammate"
 ROW_AVG = "Places ahead per race"
 ROW_MARGIN = "Margin of error (± places, 95%)"
 ROW_REL = "Reliability"
-rows = [ROW_CUM, ROW_AVG, ROW_MARGIN, ROW_REL]
+ROW_VERDICT = "Clear gap or chance?"
+rows = [ROW_CUM, ROW_AVG, ROW_MARGIN, ROW_REL, ROW_VERDICT]
 
 
 def glance_col(r):
@@ -66,12 +67,15 @@ def glance_col(r):
         ROW_AVG: fmt(r.gap_avg, "+.2f"),
         ROW_MARGIN: "–" if pd.isna(r.margin) else f"± {r.margin:.2f}",
         ROW_REL: f"{r.reliability} ({int(r.shared_races)} shared races)",
+        ROW_VERDICT: r.verdict,
     }
 
 
 glance = pd.DataFrame({drv: glance_col(r) for drv, r in raw.iterrows()}).loc[rows]
 
 REL_COLOURS = {"High": "#1a9850", "Medium": "#e08a00", "Low": "#d73027"}
+VERDICT_COLOURS = {"Clear advantage": "#1a9850", "Clear disadvantage": "#d73027",
+                   "Within noise": "#888888", "Too few races": "#888888"}
 
 
 def style_col(col):
@@ -88,6 +92,8 @@ def style_col(col):
                 css += " color:#d73027;"
         elif stat == ROW_REL and r.shared_races > 0:
             css = f"font-weight:600; color:{REL_COLOURS[r.reliability]};"
+        elif stat == ROW_VERDICT and r.shared_races > 0:
+            css = f"font-weight:600; color:{VERDICT_COLOURS[r.verdict]};"
         out.append(css)
     return out
 
@@ -135,6 +141,7 @@ with st.expander("How to read this table"):
 - **Reliability label**: **High** = at least {HIGH_MIN_RACES} shared races and a margin of
   at most {HIGH_MAX_MARGIN} places; **Medium** = at least {MED_MIN_RACES} shared races and a
   margin of at most {MED_MAX_MARGIN}; otherwise **Low**. These limits are rules of thumb.
+- **Clear gap or chance?**: compares *Places ahead per race* with the margin of error. **Clear advantage** / **Clear disadvantage** = the gap is larger than the margin, so it is unlikely to be chance. **Within noise** = the gap is smaller than the margin, so the drivers cannot be separated reliably. **Too few races** = fewer than {MED_MIN_RACES} shared races, so no verdict is given.
 - In a team with two drivers both drivers get the same margin and label, because they share
   the same races and their gaps are mirror images.
 
