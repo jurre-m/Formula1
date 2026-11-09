@@ -10,7 +10,11 @@ st.title("Driver comparison")
 # ---------------------------------------------------------------- sidebar: season
 st.sidebar.header("Season")
 dec, yr = period_picker(season_table(True).year, "p3", allow_all=False)
-finished_only = st.sidebar.toggle("Only count races where both drivers finished", value=True)
+finished_only = st.sidebar.toggle(
+    "Only count races where both drivers finished", value=True,
+    help="Off: races with a retirement count too. Every retirement that is not a known "
+         "mechanical failure gets one place behind the last finisher; known mechanical "
+         "failures are left out.")
 
 # ---------------------------------------------------------------- sidebar: driver search
 st.sidebar.divider()
@@ -151,6 +155,9 @@ with st.expander("How to read this table"):
   for this team.
 - **Grid places ahead per race**: the same idea as above for starting position, a
   qualifying-pace measure.
-- **Retirements** can be mechanical, so by default races where either driver did not finish
-  are left out of the teammate comparison (toggle in the sidebar).
+- **Retirements**: by default only races where both drivers finished are compared. If you
+  switch that off in the sidebar, every retirement that is not a known mechanical failure counts
+  as one place behind the last finisher (17 finishers: all retirements get 18th). Known
+  mechanical failures, and drivers who did not start, are left out. The list of how each
+  retirement reason is treated is on the "Data & cleaning" page.
 """)
