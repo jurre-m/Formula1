@@ -186,4 +186,6 @@ st.markdown("""
 - Eras differ in field size, number of races per season, reliability and how often teams swapped drivers.
 The biggest results from this are that there is more usable data in the current era (more shared races), 
 which leads to more polarized scores.
+- The career model assumes a constant skill level over the carreer and doesn't take into account that 
+the driving style of certain types of car suit different drivers better or worse.   
 """)
