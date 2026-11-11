@@ -5,8 +5,8 @@ st.title("Data & cleaning")
 
 st.markdown(f"""
 ### Source
-The data is the Kaggle dataset
-[`{SLUG}`](https://www.kaggle.com/datasets/{SLUG}), a collection of CSV files with every
+The data is from the Kaggle dataset
+[`{SLUG}`](https://www.kaggle.com/datasets/{SLUG}), a collection of 14 CSV files with every
 Formula 1 race, driver, team and result.
 
 ### Retrieval
