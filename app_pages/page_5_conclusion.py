@@ -188,4 +188,7 @@ The biggest results from this are that there is more usable data in the current 
 which leads to more polarized scores.
 - The career model assumes a constant skill level over the carreer and doesn't take into account that 
 the driving style of certain types of car suit different drivers better or worse.   
+- The career model uses only races where the driver and his teammate both finished. While this method 
+safeguards against bad luck as a factor and is therefore reliable, there is no doubt it undervalues the 
+skill of a driver to consistently bring his car safely to the finish line when a teammate crashed by driver error.
 """)
