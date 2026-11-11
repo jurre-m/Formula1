@@ -173,10 +173,16 @@ with st.expander("How the teammate-adjusted rating works"):
 """)
 
 st.markdown("""
-### What this tells us
-Write your own conclusion here. Points worth discussing:
+### Discussion points:
 - Compare the raw ranking with the teammate-adjusted one: which drivers move up or down, and why?
 - A large number of races and a margin well below the value make a ranking trustworthy.
-- Retirements are left out, so the ranking reflects pace rather than reliability.
+- Retirements are left out as default, so the ranking reflects pace rather than reliability.
+""")
+
+
+st.markdown("""
+### Considerations:
+
 - Eras differ in field size, reliability and how often teams swapped drivers.
+This likely lets current era drivers attain higher results.
 """)
