@@ -175,14 +175,15 @@ with st.expander("How the teammate-adjusted rating works"):
 st.markdown("""
 ### Discussion points:
 - Compare the raw ranking with the teammate-adjusted one: which drivers move up or down, and why?
-- A large number of races and a margin well below the value make a ranking trustworthy.
-- Retirements are left out as default, so the ranking reflects pace rather than reliability.
+- A large number of races and a margin well below the value make a ranking trustworthy, but where to draw the line?
+- Is the way retirements are handled in the model the fairest way?
 """)
 
 
 st.markdown("""
-### Considerations:
+### Weaknesses:
 
-- Eras differ in field size, reliability and how often teams swapped drivers.
-This likely lets current era drivers attain higher results.
+- Eras differ in field size, number of races per season, reliability and how often teams swapped drivers.
+The biggest results from this are that there is more usable data in the current era (more shared races), 
+which leads to more polarized scores.
 """)
