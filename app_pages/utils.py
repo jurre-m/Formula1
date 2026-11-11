@@ -23,7 +23,7 @@ NATIONALITY_TO_ISO = {
     "Uruguayan": "URY", "Australian": "AUS", "New Zealander": "NZL",
     "Japanese": "JPN", "Chinese": "CHN", "Indian": "IND", "Indonesian": "IDN",
     "Malaysian": "MYS", "Thai": "THA", "South African": "ZAF",
-    "Rhodesian": "ZWE", "Moroccan": "MAR",
+    "Rhodesian": "ZWE", "Moroccan": "MAR", "Argentinian": "ARG"
 }
 
 
