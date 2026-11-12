@@ -7,6 +7,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+# Note about changes in utils:
+# Restart: if you run the app locally, stop it with Ctrl+C and start it again. Streamlit doesn’t always pick up edits to utils.py. If it’s deployed, push the change and reboot the app.
+# Check: Print them: temporarily add st.write(HIGH_MIN_RACES, HIGH_MAX_MARGIN, MED_MIN_RACES, MED_MAX_MARGIN) to page_3_comparison.py to see which values the page is really using. (as an example of changes made in utils)
+
 SLUG = "rohanrao/formula-1-world-championship-1950-2020"                                                        # dataset URL
 
                                                                                                                 # The dataset only has nationality (not country of birth), so we map it to a country.
@@ -79,7 +83,7 @@ def mate_gap(df, col):
 
 
 @st.cache_data
-def load_race_level():                                                                                     # creating the dataframe to be used
+def load_race_level():                                                                                     # creating a function that loads the dataframe to be used
     """One row per driver per race, with teammate gaps."""
     t = load_raw()                                                                                         # giving the loading function above an easy name
     r = t["results"].copy()                                                                                # dataframe 'results' easy name
@@ -123,27 +127,35 @@ def load_race_level():                                                          
 
 
 @st.cache_data
-def season_table(finished_only=True):
+def season_table(finished_only=True):                                                                # creating the function for page 3. takes (one row per driver per race) condenses into a season table with one row per driver per team per season. It has four steps.
     """One row per driver per team per season."""
-    df = load_race_level()
+    df = load_race_level()                                                                           # loading dataframe
+
+    # step 1:   chooses between both drivers in a race finished or if one did not finish
     gcol = "gap_fin" if finished_only else "gap_all"
+
+    # step 2:  create helper columns gap and beat. gap is a copy of the earlier gcol. beat is more or less boolean: 1 if won, 0 if lost (against teammate), nan if no comparison possible
     df = df.assign(
         gap=df[gcol],
         beat=np.where(df[gcol].notna(), (df[gcol] > 0).astype(float), np.nan),
     )
+
+    # step 3: group and summarize. lots of new columns with statistics
     out = df.groupby(
         ["year", "constructorId", "team", "driverId", "driver", "nationality"], as_index=False
     ).agg(
-        races=("raceId", "nunique"), points=("points", "sum"),
-        avg_finish=("position", "mean"), avg_grid=("grid", "mean"),
-        wins=("win", "sum"), podiums=("podium", "sum"), poles=("pole", "sum"),
-        dnfs=("dnf", "sum"), shared_races=("gap", "count"),
-        gap_sum=("gap", "sum"), gap_avg=("gap", "mean"), gap_sd=("gap", "std"),
-        h2h=("beat", "mean"), grid_gap_avg=("gap_grid", "mean"),
+        races=("raceId", "nunique"), points=("points", "sum"),                    # number of races, sum of points
+        avg_finish=("position", "mean"), avg_grid=("grid", "mean"),               # mean of position, mean of qualification
+        wins=("win", "sum"), podiums=("podium", "sum"), poles=("pole", "sum"),    # wins, podiums, poles (sum = count because boolean row)
+        dnfs=("dnf", "sum"), shared_races=("gap", "count"),                       # dnf count, count of shared race
+        gap_sum=("gap", "sum"), gap_avg=("gap", "mean"), gap_sd=("gap", "std"),   # cumulative gap, average gap and correlation (main features of page 3)
+        h2h=("beat", "mean"), grid_gap_avg=("gap_grid", "mean"),                  # duels won as fraction, starting position gap average
     )
-    out["h2h"] *= 100
-    out["year"] = out["year"].astype(int)
-    return out
+    
+    # step 4: tidy up. 
+    out["h2h"] *= 100                                                             # turn fraction into percentage
+    out["year"] = out["year"].astype(int)                                         # type = int for smooth use later
+    return out                                                                    # result = season table
 
 
 def period_picker(years, key, allow_all):
