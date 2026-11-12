@@ -3,7 +3,7 @@ import streamlit as st
 
 st.set_page_config(page_title="F1 driver skill", page_icon="🏁", layout="wide")
 
-pg = st.navigation([
+pg = st.navigation([                                                                    # setup 5 pages of the app
     st.Page("page_1_intro.py", title="Introduction", icon="🏁"),
     st.Page("page_2_data.py", title="Data & cleaning", icon="🧹"),
     st.Page("page_3_comparison.py", title="Driver comparison", icon="🏎️"),
