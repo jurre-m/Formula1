@@ -223,7 +223,7 @@ def find_drivers(query):
     return list(zip(found["driverId"], found["driver"]))
 
 
-def year_ranges(years):
+def year_ranges(years):                                                      # used in career_overview (just below)
     """[1990, 1991, 1992, 1995] -> '1990–1992, 1995'"""
     years = sorted({int(y) for y in years})
     parts, start, prev = [], years[0], years[0]
@@ -243,40 +243,40 @@ def year_ranges(years):
 def career_overview(driver_id):
     """Returns (summary dict, DataFrame with one row per team)."""
     d = load_race_level()
-    d = d[d["driverId"] == driver_id]
-    stints = (d.groupby("team")
-               .agg(first=("year", "min"), seasons=("year", year_ranges),
+    d = d[d["driverId"] == driver_id]                                            # Keeps only the rows of the requested driver
+    stints = (d.groupby("team")                                                  # One group per team
+               .agg(first=("year", "min"), seasons=("year", year_ranges),        # one value per group: first (minimum)/season (year_ranges above)/races (amount of races for the grouped team)
                     races=("raceId", "nunique"))
-               .sort_values("first").reset_index())
-    info = {
-        "name": d["driver"].iloc[0], "nationality": d["nationality"].iloc[0],
-        "first": int(d["year"].min()), "last": int(d["year"].max()),
-        "races": int(d["raceId"].nunique()), "wins": int(d["win"].sum()),
+               .sort_values("first").reset_index())                              # chronological (sort_values), make team a column (reset_index)
+    info = {                                                                     # info given about the requested driver
+        "name": d["driver"].iloc[0], "nationality": d["nationality"].iloc[0],    # name, nationality
+        "first": int(d["year"].min()), "last": int(d["year"].max()),             # career span
+        "races": int(d["raceId"].nunique()), "wins": int(d["win"].sum()),        # total race number, race wins (integer)
     }
-    return info, stints
+    return info, stints                                                          # output. Page 3 uses both, page 5 only info. 
 
 
-# ---------------------------------------------------------------- career statistics
+# ---------------------------------------------------------------- career statistics            # page 5
 @st.cache_data
 def career_table(min_season_races=10):
     """Career totals per driver, using only seasons with at least `min_season_races`
     races shared with a teammate (finishers only)."""
     rl = load_race_level()
     s = season_table(True)
-    keys = s.loc[s["shared_races"] >= min_season_races, ["year", "constructorId", "driverId"]]
-    r = rl.merge(keys, on=["year", "constructorId", "driverId"]).dropna(subset=["gap_fin"])
-    r = r.assign(beat=(r["gap_fin"] > 0).astype(float))
-    out = r.groupby(["driverId", "driver", "nationality"], as_index=False).agg(
-        seasons=("year", "nunique"), first=("year", "min"), last=("year", "max"),
-        duels=("gap_fin", "count"), gap_sum=("gap_fin", "sum"),
-        gap_avg=("gap_fin", "mean"), gap_sd=("gap_fin", "std"), h2h=("beat", "mean"))
+    keys = s.loc[s["shared_races"] >= min_season_races, ["year", "constructorId", "driverId"]]    # creates a table for those drivers that qualify for the requirement (slider minimum shared seasons with at least 10 races)
+    r = rl.merge(keys, on=["year", "constructorId", "driverId"]).dropna(subset=["gap_fin"])       # merges the race level dataframe with the table created above (only those who HAVE a comparison to be made)
+    r = r.assign(beat=(r["gap_fin"] > 0).astype(float))                                           # beat was the boolean for better/worse than teammate
+    out = r.groupby(["driverId", "driver", "nationality"], as_index=False).agg(                   # creating statistics again for (driverid/drivername,drivernation)
+        seasons=("year", "nunique"), first=("year", "min"), last=("year", "max"),                 # active seasons, first and last season
+        duels=("gap_fin", "count"), gap_sum=("gap_fin", "sum"),                                   # total duels (with >= 2 finishers in team), career gap with teammate
+        gap_avg=("gap_fin", "mean"), gap_sd=("gap_fin", "std"), h2h=("beat", "mean"))             # career gap average, consistency vs teammate per race, % winst vs teammate (line below to percentage)
     out["h2h"] *= 100
     return out
 
 
 # ---------------------------------------------------------------- teammate-adjusted rating
-# Shrinkage towards the "average driver", in pseudo-races. Higher = more cautious with
-# drivers who have few duels.
+                                        # Shrinkage towards the "average driver", in pseudo-races. Higher = more cautious with drivers who have few duels.
+                                        # This part of the code is meant to beat the phenomenon that its easier to beat a bad driver than a medium driver (so the first comparison of skill-level can be deceiving)
 RATING_LAMBDA = 10.0
 
 
