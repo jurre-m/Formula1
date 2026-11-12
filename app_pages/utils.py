@@ -190,13 +190,14 @@ def add_reliability(t):
     """Adds `margin` (95% margin of error of the per-race gap, in places) and a
     `reliability` label (High / Medium / Low) based on the number of shared races and
     on how consistent the race-by-race gap is."""
-    t = t.copy()
-    n = t["shared_races"].where(t["shared_races"] > 0)
-    t["margin"] = 1.96 * t["gap_sd"] / np.sqrt(n)
-    high = (t["shared_races"] >= HIGH_MIN_RACES) & (t["margin"] <= HIGH_MAX_MARGIN)
-    med = (t["shared_races"] >= MED_MIN_RACES) & (t["margin"] <= MED_MAX_MARGIN)
-    t["reliability"] = np.select([high, med], ["High", "Medium"], default="Low")
-    # Is the average gap clearly larger than its own margin of error, or could it be chance?
+    t = t.copy()                                                                                          # keeps original table clean
+    n = t["shared_races"].where(t["shared_races"] > 0)                                                    # number of shared races (0 = nan)
+    t["margin"] = 1.96 * t["gap_sd"] / np.sqrt(n)                                                         # 95% margin of error: 1.96**(teammate gap divided by root of shared races)
+    high = (t["shared_races"] >= HIGH_MIN_RACES) & (t["margin"] <= HIGH_MAX_MARGIN)                       # conditional. True if both are true. 
+    med = (t["shared_races"] >= MED_MIN_RACES) & (t["margin"] <= MED_MAX_MARGIN)                          # same
+    t["reliability"] = np.select([high, med], ["High", "Medium"], default="Low")                          # checking if high or med conditionals are true. If not == low
+    
+    # Is the average gap clearly larger than its own margin of error, or could it be chance?              # also conditional: check if races AND margin give a clear result. Otherwise it's classified as noise (coincidence)
     t["verdict"] = np.select(
         [t["shared_races"] < MED_MIN_RACES, t["gap_avg"] > t["margin"], t["gap_avg"] < -t["margin"]],
         ["Too few races", "Clear advantage", "Clear disadvantage"],
