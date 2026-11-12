@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-SLUG = "rohanrao/formula-1-world-championship-1950-2020"
+SLUG = "rohanrao/formula-1-world-championship-1950-2020"                                                        # dataset URL
 
-# The dataset only has nationality (not country of birth), so we map it to a country.
+                                                                                                                # The dataset only has nationality (not country of birth), so we map it to a country.
 NATIONALITY_TO_ISO = {
     "British": "GBR", "German": "DEU", "East German": "DEU", "French": "FRA",
     "Italian": "ITA", "Spanish": "ESP", "Dutch": "NLD", "Belgian": "BEL",
@@ -27,8 +27,8 @@ NATIONALITY_TO_ISO = {
 }
 
 
-# Retirement reasons (matched on the lower-cased `status` text of the dataset).
-# Known mechanical failures are left out of the "all races" comparison. Edit to taste.
+                                                                                                                # Retirement reasons (matched on the lower-cased `status` text of the dataset).
+                                                                                                                # Known mechanical failures are left out of the "all races" comparison. Edit to taste.
 MECHANICAL_PATTERN = (
     r"engine|gearbox|transmission|clutch|hydraulic|electr|radiator|suspension|brake|"
     r"differential|overheat|mechanical|technical|driveshaft|axle|cv joint|fuel|oil|water|"
@@ -36,83 +36,89 @@ MECHANICAL_PATTERN = (
     r"throttle|steering|track rod|wheel|tyre|puncture|pneumatic|power|\bers\b|battery|"
     r"alternator|vibration|undertray|wing|heat shield|seat|safety belt|refuelling"
 )
-# Entries that never really raced: also left out.
+                                                                                                                # Entries that never really raced: also left out (no chance to show skill).
 NOT_STARTED_PATTERN = r"did not|107%|withdrew"
 
 
-@st.cache_data(show_spinner="Downloading F1 data from Kaggle…")
+@st.cache_data(show_spinner="Downloading F1 data from Kaggle…")                                                # Start of the coding to download the datasets needed
 def load_raw():
     """Download the Kaggle dataset into a temp folder, read the tables, delete the folder."""
     try:
-        token = st.secrets["KAGGLE_API_TOKEN"]
+        token = st.secrets["KAGGLE_API_TOKEN"]                                                                 # different ways of accessing the token
     except Exception:
         token = os.environ.get("KAGGLE_API_TOKEN")
     if token:
         os.environ["KAGGLE_API_TOKEN"] = token
 
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory() as tmp:                                                                 # Creating temporary folder
         os.environ["KAGGLEHUB_CACHE"] = tmp
-        import kagglehub  # imported after the env var is set
+        import kagglehub                                                                                       # imported after the env var is set
 
-        path = kagglehub.dataset_download(SLUG)
+        path = kagglehub.dataset_download(SLUG)                                                                # download command combined with earlier URL name
         return {
             name: pd.read_csv(os.path.join(path, f"{name}.csv"), na_values=r"\N")
-            for name in ["results", "races", "drivers", "constructors", "status"]
+            for name in ["results", "races", "drivers", "constructors", "status"]                              # Only used 5 of the possible 14 datasets for the app
         }
 
-
+                                                                        # The function turns each driver’s result in a race into one number: how much better or worse they did than their teammate(s) in that same race.
 def mate_gap(df, col):
     """For each row: (average `col` of teammates in that race) - (own `col`).
-    Lower positions are better, so a positive gap = driver was ahead of teammate(s)."""
-    d = df[["raceId", "constructorId", col]]
-    g = d.groupby(["raceId", "constructorId"])[col]
-    n, s = g.transform("count"), g.transform("sum")
-    mates = n - d[col].notna().astype(int)
-    mate_avg = (s - d[col].fillna(0)) / mates.where(mates > 0)
-    return mate_avg - d[col]
+    Lower positions are better, so a positive gap = driver was ahead of teammate(s)."""                        # function receives a table with one row per driver per race.
+    d = df[["raceId", "constructorId", col]]                                                                    # keeps the columns needed: race, team, and the value to compare (col can differ). Keeps index so can be merged back
+    g = d.groupby(["raceId", "constructorId"])[col]                                                            # groups by team per race. Col picks column to calculate on, but nothing calculated yet.
+    n, s = g.transform("count"), g.transform("sum")                                                            # keeps table shape. n gives drivers in the group with a certain value (missing not counted). s gives sums of those values.
+    mates = n - d[col].notna().astype(int)                                                                    # counts teammates with a value. (n includes firstperson (if value)). Results in 1 or 0 (unless 2 teammates in single race) as an integer. 
+    mate_avg = (s - d[col].fillna(0)) / mates.where(mates > 0)                                                # average of teammates values. (s minus driver gives teammate total, fillna for avoiding Nan's). 2nd part DOES give Nan where teammate has no value
+    return mate_avg - d[col]                                                                                    # subtract teammate result minus driver's. Positive value means driver is ahead of teammate. 
+
+# notes about mate_gap:
+# Three drivers in a team (in a single race): the teammates’ average is used, so each driver is compared with the other two combined.
+# Teammate retired: in the finishers-only variant, a race where one driver has no position gives NaN for the other driver too, so it doesn’t count. This is how “only races where both finished” works.
+# Two drivers: the two results are always mirror images (+2 and −2).
+# Same function, other columns: the same function is used for finishing position, finishing position with retirements, and grid position. Only the column passed in changes.
 
 
 @st.cache_data
-def load_race_level():
+def load_race_level():                                                                                     # creating the dataframe to be used
     """One row per driver per race, with teammate gaps."""
-    t = load_raw()
-    r = t["results"].copy()
+    t = load_raw()                                                                                         # giving the loading function above an easy name
+    r = t["results"].copy()                                                                                # dataframe 'results' easy name
     for c in ["grid", "position", "positionOrder", "points", "rank"]:
-        r[c] = pd.to_numeric(r[c], errors="coerce")
-    r["grid"] = r["grid"].where(r["grid"] > 0)  # 0 = pit-lane start / no grid slot
+        r[c] = pd.to_numeric(r[c], errors="coerce")                                                        # making sure things are numeric, not numbers as strings
+    r["grid"] = r["grid"].where(r["grid"] > 0)                                                             # 0 = pit-lane start / no grid slot                        
 
-    races = t["races"][["raceId", "year", "round", "name"]].rename(columns={"name": "race"})
+    races = t["races"][["raceId", "year", "round", "name"]].rename(columns={"name": "race"})               # downsizing dataframe 'races'
     drivers = t["drivers"].assign(driver=lambda x: x.forename + " " + x.surname)[
-        ["driverId", "driver", "nationality"]]
-    teams = t["constructors"][["constructorId", "name"]].rename(columns={"name": "team"})
-    status = t["status"][["statusId", "status"]]
+        ["driverId", "driver", "nationality"]]                                                             # from dataframe drivers, make a new df with some old columns and a new one with first and last names combined
+    teams = t["constructors"][["constructorId", "name"]].rename(columns={"name": "team"})                  # downsizing dataframe 'constructors'
+    status = t["status"][["statusId", "status"]]                                                           # downsizing dataframe 'status'
 
     df = (r.merge(races, on="raceId").merge(drivers, on="driverId")
            .merge(teams, on="constructorId").merge(status, on="statusId", how="left")
-           .reset_index(drop=True))
+           .reset_index(drop=True))                                                                        # merge all, created df 
 
-    df["gap_fin"] = mate_gap(df, "position")       # only classified finishers
-    # "All races" variant: every retirement that is not a known mechanical failure gets the
-    # same place, one behind the last classified finisher (17 finishers -> all get 18th).
-    # Known mechanical failures and drivers who did not start are left out (NaN).
-    status_l = df["status"].fillna("").str.lower()
-    dnf = df["position"].isna()
+    df["gap_fin"] = mate_gap(df, "position")                                                               # only classified finishers
+                                                                                                           # "All races" variant: every retirement that is not a known mechanical failure gets the
+                                                                                                           # same place, one behind the last classified finisher (17 finishers -> all get 18th).
+                                                                                                           # Known mechanical failures and drivers who did not start are left out (NaN).
+    status_l = df["status"].fillna("").str.lower()                                                         # making a new column for status, many categorical values into useful ones
+    dnf = df["position"].isna()                                                                            
     df["dnf_kind"] = np.select(
         [~dnf,
          dnf & status_l.str.contains(NOT_STARTED_PATTERN),
          dnf & status_l.str.contains(MECHANICAL_PATTERN)],
         ["Finished", "Did not start", "Mechanical failure"],
-        default="Other retirement")
-    last_place = df.groupby("raceId")["position"].transform("count") + 1
+        default="Other retirement")                                                                        # usefull categorical values for reason DNF
+    last_place = df.groupby("raceId")["position"].transform("count") + 1                                   # creating value finish position for retired cars
     df["pos_incl"] = np.select(
         [df["dnf_kind"] == "Finished", df["dnf_kind"] == "Other retirement"],
-        [df["position"], last_place], default=np.nan)
-    df["gap_all"] = mate_gap(df, "pos_incl")
-    df["gap_grid"] = mate_gap(df, "grid")          # qualifying / grid gap
-    df["win"] = (df.position == 1).astype(int)
-    df["podium"] = (df.position <= 3).astype(int)
-    df["pole"] = (df.grid == 1).astype(int)
-    df["dnf"] = df.position.isna().astype(int)
+        [df["position"], last_place], default=np.nan)                                                      # column with either position finished, or last place +1 (or nan)
+    df["gap_all"] = mate_gap(df, "pos_incl")                                                               # column holding finish number (pos or neg) vs teammate
+    df["gap_grid"] = mate_gap(df, "grid")                                                                  # column qualifying / grid gap (same driver)
+    df["win"] = (df.position == 1).astype(int)                                                             # column winner
+    df["podium"] = (df.position <= 3).astype(int)                                                          # column podium
+    df["pole"] = (df.grid == 1).astype(int)                                                                # column pole position
+    df["dnf"] = df.position.isna().astype(int)                                                             # column dnf
     return df
 
 
