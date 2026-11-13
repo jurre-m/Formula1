@@ -32,9 +32,9 @@ the tables are kept in memory (cached).
 raw = load_raw()
 rl = load_race_level()
 c1, c2, c3 = st.columns(3)
-c1.metric("Race entries", f"{len(rl):,}")
-c2.metric("Seasons", f"{rl.year.nunique()} ({rl.year.min()}–{rl.year.max()})")
-c3.metric("Drivers", f"{rl.driverId.nunique():,}")
+c1.metric("Race entries", f"{len(rl):,}")                                                   # length of the race entries (one driver per row)
+c2.metric("Seasons", f"{rl.year.nunique()} ({rl.year.min()}–{rl.year.max()})")              # Shows seasons in the dataset
+c3.metric("Drivers", f"{rl.driverId.nunique():,}")                                          # number of unique drivers
 
 with st.expander("Rows per source table"):
     st.dataframe({k: len(v) for k, v in raw.items()})
