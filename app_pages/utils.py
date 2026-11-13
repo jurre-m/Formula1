@@ -279,6 +279,13 @@ def career_table(min_season_races=10):
                                         # This part of the code is meant to beat the phenomenon that its easier to beat a bad driver than a medium driver (so the first comparison of skill-level can be deceiving)
 RATING_LAMBDA = 10.0
 
+# The idea
+# In a race between teammates i and j, the gap (j's position − i's position) should be roughly i’s skill − j’s skill, plus random noise. 
+# Each duel is one equation, and the function finds the set of ratings that fits all of them best. 
+# This is a weighted least-squares fit, with one change (the shrinkage in step 6 below).
+
+# Here is the small example I’ll use. A beats B by 2 places on average over 20 races, and B beats C by 2 places on average over 20 races. 
+# A and C are never teammates, but the chain links them.
 
 @st.cache_data
 def driver_ratings(finished_only=True):
@@ -290,52 +297,52 @@ def driver_ratings(finished_only=True):
     The rating is in 'places per race versus the average driver'; the difference between two
     ratings is the expected gap if they were teammates."""
     rl = load_race_level()
-    pos = "position" if finished_only else "pos_incl"
+    pos = "position" if finished_only else "pos_incl"                                                  # same toggle as elsewhere: finishers only, or retirements equally at last place
     left = rl[["raceId", "constructorId", "year", "driverId", pos]]
     right = rl[["raceId", "constructorId", "driverId", pos]]
-    p = left.merge(right, on=["raceId", "constructorId"], suffixes=("_i", "_j"))
-    p = p[p["driverId_i"] < p["driverId_j"]].copy()
-    p["g"] = p[f"{pos}_j"] - p[f"{pos}_i"]          # positive = driver i ahead of j
-    p = p.dropna(subset=["g"])
+    p = left.merge(right, on=["raceId", "constructorId"], suffixes=("_i", "_j"))                       # tables merged to themselves (_i and _j). So driver matched with his teammates in a race (including himself)
+    p = p[p["driverId_i"] < p["driverId_j"]].copy()                                                    # removes self-matches in p
+    p["g"] = p[f"{pos}_j"] - p[f"{pos}_i"]                                                             # positive = driver i ahead of j
+    p = p.dropna(subset=["g"])                                                                         # drops places where either driver has no position
 
-    pr = (p.groupby(["year", "constructorId", "driverId_i", "driverId_j"])["g"]
-            .agg(n="count", g_mean="mean", g_var="var").reset_index())
+    pr = (p.groupby(["year", "constructorId", "driverId_i", "driverId_j"])["g"]                        # condense to one row per pair per season
+            .agg(n="count", g_mean="mean", g_var="var").reset_index())                                 # for each pair: keeps n (shared races), g_mean (average gap), g_var (variance of the gap)
 
-    # race-to-race noise, pooled over all teammate pairs
+    # race-to-race noise, pooled over all teammate pairs                                               # so check if the numbers found are significant or not
     dof = (pr["n"] - 1).sum()
-    sigma2 = float((pr["g_var"].fillna(0) * (pr["n"] - 1)).sum() / dof) if dof > 0 else 1.0
+    sigma2 = float((pr["g_var"].fillna(0) * (pr["n"] - 1)).sum() / dof) if dof > 0 else 1.0            # sigma2 = typical variance of a single race's gap
 
-    ids = np.sort(np.unique(np.r_[pr["driverId_i"], pr["driverId_j"]]))
-    index = {d: k for k, d in enumerate(ids)}
-    i = pr["driverId_i"].map(index).to_numpy()
+    ids = np.sort(np.unique(np.r_[pr["driverId_i"], pr["driverId_j"]]))                                # sorted list of drivers
+    index = {d: k for k, d in enumerate(ids)}                                                          # sorted list (id number of drivers) is indexed
+    i = pr["driverId_i"].map(index).to_numpy()                                                         # i and j are indexed drivers in the same team
     j = pr["driverId_j"].map(index).to_numpy()
-    w = pr["n"].to_numpy(float)
+    w = pr["n"].to_numpy(float)                                                                        # w and g are number of races (weight) and average gap
     g = pr["g_mean"].to_numpy(float)
 
     m = len(ids)
-    M = np.zeros((m, m))
-    b = np.zeros(m)
-    np.add.at(M, (i, i), w)
+    M = np.zeros((m, m))                                                                              # M is total weight of all duels of two specific driver couple. (zeros((2,3)) gives [[0,0][0,0,0]], easy to read with computer)
+    b = np.zeros(m)                                                                                   # b = weighted gap, positive when the driver was ahead, negative when he was behind.
+    np.add.at(M, (i, i), w)                                                                           # handles repeated positions
     np.add.at(M, (j, j), w)
     np.add.at(M, (i, j), -w)
     np.add.at(M, (j, i), -w)
     np.add.at(b, i, w * g)
     np.add.at(b, j, -w * g)
-    M += RATING_LAMBDA * np.eye(m)
-    Minv = np.linalg.inv(M)
+    M += RATING_LAMBDA * np.eye(m)                                                                    # adds the set times to run the equasion to the math. Pulls drivers with few duels toward average, fixes the zero point. 
+    Minv = np.linalg.inv(M)                                                                           # actually does the calculating resulting in 'rating'
     rating = Minv @ b
-    se = np.sqrt(sigma2 * np.diag(Minv))      # approximate (slightly conservative)
+    se = np.sqrt(sigma2 * np.diag(Minv))                                                              # standard error. set to be approximate and slightly conservative (drivers with large duel numbers are reliable. Low numbers less so)
 
     out = pd.DataFrame({"driverId": ids, "rating": rating, "se": se})
     by_id = dict(zip(ids, rating))
-    long = pd.concat([
+    long = pd.concat([                                                                                # long: pair rows listed for both drivers point of view (list of teammates for every driver)
         pd.DataFrame({"driverId": pr["driverId_i"], "mate": pr["driverId_j"], "n": pr["n"]}),
         pd.DataFrame({"driverId": pr["driverId_j"], "mate": pr["driverId_i"], "n": pr["n"]}),
     ])
     long["wr"] = long["mate"].map(by_id) * long["n"]
     agg = long.groupby("driverId").agg(pair_duels=("n", "sum"), wr=("wr", "sum"))
-    agg["mate_rating"] = agg["wr"] / agg["pair_duels"]
-    return out.merge(agg[["pair_duels", "mate_rating"]], left_on="driverId", right_index=True)
+    agg["mate_rating"] = agg["wr"] / agg["pair_duels"]                                                # average rating of a driver's teammates. 
+    return out.merge(agg[["pair_duels", "mate_rating"]], left_on="driverId", right_index=True)        # returns one row per driver (rating, se, pair_duels, mate_rating). 
 
 
 @st.cache_data
