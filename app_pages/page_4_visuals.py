@@ -75,28 +75,28 @@ with tab_duel:
         if d.empty:
             st.info("No teammate comparison possible for this team and season.")
         else:
-            d["cumulative"] = d.groupby("driver")["gap_fin"].cumsum()
-            fig = px.line(d, x="round", y="cumulative", color="driver", markers=True,
+            d["cumulative"] = d.groupby("driver")["gap_fin"].cumsum()                                                  # calculates a column for cumulative points in a season
+            fig = px.line(d, x="round", y="cumulative", color="driver", markers=True,                                  # this is where the lineplot gets built
                           hover_data=["race"],
                           labels={"round": "Race number", "cumulative":
                                   "Cumulative places ahead of teammate"})
-            fig.add_hline(y=0, line_dash="dot")
+            fig.add_hline(y=0, line_dash="dot")                                                                        # sets the 0 line
             st.plotly_chart(fig)
             st.caption("Counts races in which the driver and a teammate both finished.")
 
 # ---------------------------------------------------------------- qualifying vs race
 with tab_qr:
-    min_shared = st.slider("Min. shared races in the season", 1, 24, 10)
+    min_shared = st.slider("Min. shared races in the season", 1, 24, 10)                                               # builds the slider and sets its limits (title, (min or step?), max, default)
     d = scope[(scope.shared_races >= min_shared)].dropna(subset=["grid_gap_avg"])
     if d.empty:
-        st.info("No data for this selection.")
+        st.info("No data for this selection.")                                                                         # avoids error if no data
     else:
-        fig = px.scatter(
+        fig = px.scatter(                                                                                              # scatterplot
             d, x="grid_gap_avg", y="gap_avg", size="shared_races", hover_name="driver",
             hover_data=["year", "team"],
             labels={"grid_gap_avg": "Grid places ahead of teammate (qualifying pace)",
                     "gap_avg": "Finishing places ahead of teammate (race result)"})
-        fig.add_hline(y=0, line_dash="dot")
+        fig.add_hline(y=0, line_dash="dot")                                                                            # x and y dotted line
         fig.add_vline(x=0, line_dash="dot")
         st.plotly_chart(fig)
         st.caption("Top right: faster than the teammate on Saturday and Sunday. "
@@ -104,17 +104,17 @@ with tab_qr:
 
 # ---------------------------------------------------------------- career
 with tab_career:
-    elig = tbl[tbl.shared_races >= 10]
-    counts = elig.groupby("driver").year.nunique()
+    elig = tbl[tbl.shared_races >= 10]                                                                                 # sets minimum of shared races (in a season)
+    counts = elig.groupby("driver").year.nunique()                                                                     # count how many seasons the drivers in elig have qualified for elig
     names = sorted(counts[counts >= 3].index)
-    default = [n for n in ["Lewis Hamilton", "Michael Schumacher"] if n in names]
-    pick = st.multiselect("Drivers (at least 3 seasons with 10+ shared races)", names,
+    default = [n for n in ["Lewis Hamilton", "Michael Schumacher"] if n in names]                                      # sets 2 defaults as example
+    pick = st.multiselect("Drivers (at least 3 seasons with 10+ shared races)", names,                                 # sets the selectbox
                           default=default)
     if pick:
-        c = (elig[elig.driver.isin(pick)].groupby(["driver", "year"], as_index=False)
+        c = (elig[elig.driver.isin(pick)].groupby(["driver", "year"], as_index=False)                                   # calculates data for the drivers selected
              .agg(gap=("gap_sum", "sum"), n=("shared_races", "sum")))
-        c["avg_gap"] = c.gap / c.n
-        fig = px.line(c, x="year", y="avg_gap", color="driver", markers=True,
+        c["avg_gap"] = c.gap / c.n                                                                                      # prepares hover data
+        fig = px.line(c, x="year", y="avg_gap", color="driver", markers=True,                                           # builds figure
                       labels={"avg_gap": "Places ahead of teammate per race"})
         fig.add_hline(y=0, line_dash="dot")
         st.plotly_chart(fig)
