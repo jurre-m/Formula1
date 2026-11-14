@@ -3,3 +3,9 @@ pandas
 numpy
 plotly
 kagglehub
+os
+tempfile
+unicodedata
+pathlib
+plotly.express
+
