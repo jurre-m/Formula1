@@ -6,12 +6,17 @@ import unicodedata
 import numpy as np
 import pandas as pd
 import streamlit as st
+from pathlib import Path
 
 # Note about changes in utils:
 # Restart: if you run the app locally, stop it with Ctrl+C and start it again. Streamlit doesn’t always pick up edits to utils.py. If it’s deployed, push the change and reboot the app.
 # Check: Print them: temporarily add st.write(HIGH_MIN_RACES, HIGH_MAX_MARGIN, MED_MIN_RACES, MED_MAX_MARGIN) to page_3_comparison.py to see which values the page is really using. (as an example of changes made in utils)
 
 SLUG = "rohanrao/formula-1-world-championship-1950-2020"                                                        # dataset URL
+
+# for offline loading:
+TABLES = ["results", "races", "drivers", "constructors", "status"]
+DATA_DIR = Path(__file__).parent / "data"                                                                       # filled by download_data.py
 
                                                                                                                 # The dataset only has nationality (not country of birth), so we map it to a country.
 NATIONALITY_TO_ISO = {
@@ -44,9 +49,13 @@ MECHANICAL_PATTERN = (
 NOT_STARTED_PATTERN = r"did not|107%|withdrew"
 
 
-@st.cache_data(show_spinner="Downloading F1 data from Kaggle…")                                                # Start of the coding to download the datasets needed
-def load_raw():
-    """Download the Kaggle dataset into a temp folder, read the tables, delete the folder."""
+@st.cache_data(show_spinner="Loading F1 data…")
+def load_raw():                                                                                                # either download from Kaggle or if that fails, upload from folder data
+    """Read the CSV files from the local data/ folder. If they are not there, fall back to
+    downloading the Kaggle dataset into a temp folder (needs internet and a token)."""
+    if all((DATA_DIR / f"{name}.csv").exists() for name in TABLES):
+        return {name: pd.read_csv(DATA_DIR / f"{name}.csv", na_values=r"\N") for name in TABLES}
+      
     try:
         token = st.secrets["KAGGLE_API_TOKEN"]                                                                 # different ways of accessing the token
     except Exception:
