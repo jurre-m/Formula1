@@ -5,14 +5,15 @@ st.title("Data & cleaning")
 
 st.markdown(f"""
 ### Source
-The data is from the Kaggle dataset
-[`{SLUG}`](https://www.kaggle.com/datasets/{SLUG}), a collection of 14 CSV files with every
+The data is the Kaggle dataset
+[`{SLUG}`](https://www.kaggle.com/datasets/{SLUG}), a collection of CSV files with every
 Formula 1 race, driver, team and result.
 
 ### Retrieval
-The app downloads the dataset from Kaggle with `kagglehub` using an API token stored as a
-Streamlit secret. The files go to a temporary folder that is deleted straight away, and
-the tables are kept in memory (cached).
+The source tables were downloaded from Kaggle once with `download_data.py` (using `kagglehub`
+and a Kaggle API token) and saved in the `data/` folder of the project. The app reads these
+files, so it works without an internet connection. If the folder is missing, the app downloads
+the data from Kaggle instead (token stored as a Streamlit secret).
 
 ### Cleaning steps
 1. Missing values in the source are written as `\\N`; these are read as real missing values (NaN).
@@ -32,9 +33,9 @@ the tables are kept in memory (cached).
 raw = load_raw()
 rl = load_race_level()
 c1, c2, c3 = st.columns(3)
-c1.metric("Race entries", f"{len(rl):,}")                                                   # length of the race entries (one driver per row)
-c2.metric("Seasons", f"{rl.year.nunique()} ({rl.year.min()}–{rl.year.max()})")              # Shows seasons in the dataset
-c3.metric("Drivers", f"{rl.driverId.nunique():,}")                                          # number of unique drivers
+c1.metric("Race entries", f"{len(rl):,}")
+c2.metric("Seasons", f"{rl.year.nunique()} ({rl.year.min()}–{rl.year.max()})")
+c3.metric("Drivers", f"{rl.driverId.nunique():,}")
 
 with st.expander("Rows per source table"):
     st.dataframe({k: len(v) for k, v in raw.items()})
