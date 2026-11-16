@@ -5,7 +5,7 @@ plotly
 kagglehub
 
 
-unicodedata
+
 pathlib
 plotly.express
 
