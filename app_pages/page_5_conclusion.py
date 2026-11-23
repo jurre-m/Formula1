@@ -6,26 +6,26 @@ import streamlit as st
 from utils import (RATING_LAMBDA, add_reliability, career_overview, career_table,
                    driver_ratings, find_drivers, teammate_results)
 
-MIN_RACES = 10          # a season qualifies with at least this many races shared with a teammate
-ADJ = "Teammate-adjusted rating"
+MIN_RACES = 10                                                                      # a season qualifies with at least this many races shared with a teammate
+ADJ = "Teammate-adjusted rating"                                                    # prepping ADJ and RAW for 
 RAW = "Average gap vs teammates (raw)"
 
 
 def fmt(v, spec):
-    return "–" if pd.isna(v) else format(v, spec)
+    return "–" if pd.isna(v) else format(v, spec)                                   # return - if value (v) is missing. Else clean value into (several) readable stats
 
 
 st.title("Conclusion")
 
-# ---------------------------------------------------------------- data
-ratings = driver_ratings(True)
-t = career_table(MIN_RACES).merge(ratings, on="driverId", how="left")
-t = add_reliability(t.assign(shared_races=t["duels"]))      # raw gap: margin + verdict
-t["rating_margin"] = 1.96 * t["se"]
-t["rating_verdict"] = np.select(
-    [t["rating"] - t["rating_margin"] > 0, t["rating"] + t["rating_margin"] < 0],
+# ---------------------------------------------------------------- data                    # building the table that page 5 uses for rating (t)
+ratings = driver_ratings(True)                                                             # calls earlier funtion from utils. 1 row per driver per race. True gives finishers only
+t = career_table(MIN_RACES).merge(ratings, on="driverId", how="left")                      # (MIN_RACES) ensures threshold applies, then merge tables (left to keep nan's)
+t = add_reliability(t.assign(shared_races=t["duels"]))                                     # stores in t new values for reliablility (many races so earlier margin figure usually small)
+t["rating_margin"] = 1.96 * t["se"]                                                        # adding 95% margin of error
+t["rating_verdict"] = np.select(                                                           # compares the 95% against the 0 value (the average driver)
+    [t["rating"] - t["rating_margin"] > 0, t["rating"] + t["rating_margin"] < 0],          
     ["Clearly above average", "Clearly below average"], default="Within noise")
-
+                                                                                           # after these lines, t holds the adjusted career and the raw numbers.
 # ---------------------------------------------------------------- controls
 c1, c2 = st.columns(2)
 measure = c1.radio(
