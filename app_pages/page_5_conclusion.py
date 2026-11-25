@@ -148,7 +148,7 @@ with st.expander("Career results against every teammate"):
         "rating": "Teammate's rating"})[
         ["Teammate", "Team(s)", "Seasons", "Shared races", "Places ahead per race",
          "Duels won (%)", "Teammate's rating"]].round(2)
-    show = show.sort_values(by='Teammate's rating', ascending=False)
+    show = show.sort_values(by="Teammate's rating", ascending=False)
     if show.empty:
         st.info("This driver has no comparable teammate results.")
     else:
