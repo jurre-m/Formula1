@@ -122,7 +122,11 @@ st.caption(
     "informative here.")
 
 # ---------------------------------------------------------------- top 10 chart
-top = ranked.head(10).iloc[::-1]
+
+top1 = st.slider("Select amount of drivers", 0, 50.0, 10.0)
+
+
+top = ranked.head(top1).iloc[::-1]
 fig = px.bar(top, x=val, y="driver", orientation="h", error_x=mar,
              hover_data=["seasons", "duels", "h2h"],
              labels={val: f"{short} ({unit})", "driver": ""})
