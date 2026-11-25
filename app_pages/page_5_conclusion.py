@@ -142,6 +142,7 @@ with st.expander("Career results against every teammate"):
     pick = st.selectbox("Driver", ids, index=start, format_func=options.get)
     tm = teammate_results(pick, True).merge(
         ratings[["driverId", "rating"]], on="driverId", how="left")
+    tm.sort_values(by='rating', ascending=False)
     show = tm.rename(columns={
         "driver": "Teammate", "teams": "Team(s)", "seasons": "Seasons", "races": "Shared races",
         "gap_avg": "Places ahead per race", "h2h": "Duels won (%)",
@@ -156,6 +157,8 @@ with st.expander("Career results against every teammate"):
                    "total. Only races where both finished count. A positive gap means the "
                    "selected driver was usually ahead. A strong teammate (high rating) makes a "
                    "positive gap more impressive.")
+
+
 
 # ---------------------------------------------------------------- method + conclusion
 with st.expander("How the teammate-adjusted rating works"):
