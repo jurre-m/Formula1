@@ -47,7 +47,7 @@ t = year_df[year_df.team == team].sort_values("gap_sum", ascending=False)
 raw = t.set_index("driver")
 
 st.subheader(f"{team}, {yr}")
-st.write(t['driver.head(0)'])
+st.write(t['driver'].head(1)
 
   
 if t.shared_races.sum() == 0:
