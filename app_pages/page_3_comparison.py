@@ -47,6 +47,9 @@ t = year_df[year_df.team == team].sort_values("gap_sum", ascending=False)
 raw = t.set_index("driver")
 
 st.subheader(f"{team}, {yr}")
+st.subheader(t)
+
+  
 if t.shared_races.sum() == 0:
     st.info("No teammate comparison possible for this team and season.")
 
