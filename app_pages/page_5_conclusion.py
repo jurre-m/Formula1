@@ -123,7 +123,7 @@ st.caption(
 
 # ---------------------------------------------------------------- top 10 chart
 
-top1 = st.slider("Select amount of drivers", 0, 50.0, 10.0)
+top1 = st.slider("Select amount of drivers", 0, 50, 10)
 
 
 top = ranked.head(top1).iloc[::-1]
