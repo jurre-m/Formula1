@@ -142,13 +142,13 @@ with st.expander("Career results against every teammate"):
     pick = st.selectbox("Driver", ids, index=start, format_func=options.get)
     tm = teammate_results(pick, True).merge(
         ratings[["driverId", "rating"]], on="driverId", how="left")
-    tm.sort_values(by='rating', ascending=False)
     show = tm.rename(columns={
         "driver": "Teammate", "teams": "Team(s)", "seasons": "Seasons", "races": "Shared races",
         "gap_avg": "Places ahead per race", "h2h": "Duels won (%)",
         "rating": "Teammate's rating"})[
         ["Teammate", "Team(s)", "Seasons", "Shared races", "Places ahead per race",
          "Duels won (%)", "Teammate's rating"]].round(2)
+    show = show.sort_values(by='Teammate's rating', ascending=False)
     if show.empty:
         st.info("This driver has no comparable teammate results.")
     else:
